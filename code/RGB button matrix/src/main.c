@@ -11,10 +11,10 @@
 
 static	TIM_HandleTypeDef	htim2;
 static	SPI_HandleTypeDef hspi = {0};
-static volatile uint8_t		current_col = 0;
+static volatile uint8_t		current_row = 0;
 static uint32_t	rows[NBR_ROWS] = {0};
 
-#define SET_COLOR(row, col, value) (rows[row] = (value & ~(0b111 << (col * 3))) | (value << (col * 3)))
+#define SET_COLOR(row, col, value) (rows[row] = ((value) & ~(0b111 << ((col) * 3))) | ((value) << ((col) * 3)))
 
 void LED_Init();
 
@@ -41,11 +41,11 @@ void TIM2_IRQHandler(void) {
 
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
 	if (htim->Instance == TIM2) {
-		current_col = ++current_col % 8;
+		current_row = ++current_row % 8;
 		
 		// data |= 0xFF;
-		// data &= ~(1 << current_col);
-		SPI_Transmit(); // Select COL1
+		// data &= ~(1 << current_row);
+		SPI_Transmit((0xFF & ~(1 << current_row)) | ((rows[current_row]) << 8)); // Select COL1
 	}
 }
 
@@ -110,9 +110,7 @@ void SPI1_Init(SPI_HandleTypeDef* hspi) {
 	}
 }
 
-static void SPI_Transmit(void) {
-	uint32_t	data = 0;
-
+static void SPI_Transmit(uint32_t data) {
 	HAL_GPIO_WritePin(GPIOA, LATCH_PIN, 0);
 	// if (HAL_SPI_Transmit(hspi, data, 2, 1) != HAL_OK) {
 	// 	Error_Handler();
@@ -146,13 +144,14 @@ int main(void) {
 	HAL_NVIC_SetPriority(TIM2_IRQn, 0, 0);
     HAL_NVIC_EnableIRQ(TIM2_IRQn);
 
-	data |= 0b1 <<  8;
-	while(1) {
-		HAL_Delay(200);
-		data = ((data & (0xFFFFFF00)) << 1) | (data & 0xFF);
-		if ((data & 0b11111111111100000000) == 0)
-			data = 0xFF | (0b1 << 8);
-		// data 
+	uint8_t	color = 0; // R = 0, G = 1, B = 2
+	uint8_t	index = 0; // 0 => 7
+	uint8_t	values[] = {0b1, 0b10, 0b100, 0b011, 0b101, 0b110, 0b111};
+	while (1) {
+		rows[index / NBR_COLUMNS] = 0;
+		SET_COLOR(index / NBR_COLUMNS, index % NBR_COLUMNS, values[color]);
+		color = ++color % 7;
+		index = ++index % (NBR_COLUMNS * NBR_ROWS);
 	}
 
 	// for (uint8_t i = 0; ; i = ++i % 8) {
