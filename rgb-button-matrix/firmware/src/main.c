@@ -55,7 +55,7 @@ void Timer2_Init(void) {
 	htim2.Instance = TIM2;
 	htim2.Init.Prescaler = (SystemCoreClock / 1000000) - 1; // Prescaler pour µs
 	htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
-	htim2.Init.Period = 1000 - 1; // Période pour 1 ms
+	htim2.Init.Period = 999; // Période pour 1 ms
 	htim2.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
 	htim2.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
 

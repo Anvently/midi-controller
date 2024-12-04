@@ -1,0 +1,35 @@
+Total period is the time required for a full cycle, meaning selecting every row one by one
+Row period is the time a row must be turned on. It represent a full BAM cycle
+The length of each interrupt must be measured (tI)
+With 72MhZ CPU clock, we have 72 cycles/us.
+
+Target frequency => 120Hz
+Total period => 1 / 120 => 8.33ms
+Row period => 8.33ms / 8 => 1040us
+
+tI => 10us (need to be measured)
+T = 1040 - tI = 1040 - 10 = 1030us
+
+With 1040us as BAM length and 8 bits resolution
+
+const uint32_t bamPeriods[8] = {
+    4,    // Bit 0 : 2^0 * base_unit
+    8,    // Bit 1 : 2^1 * base_unit
+    16,   // Bit 2 : 2^2 * base_unit
+    32,   // Bit 3 : 2^3 * base_unit
+    64,   // Bit 4 : 2^4 * base_unit
+    128,  // Bit 5 : 2^5 * base_unit
+    256,  // Bit 6 : 2^6 * base_unit
+    532   // Bit 7 : restant pour atteindre ~1040µs total
+};
+
+With 6 bits resolution and 1024us as BAM length (122Hz)
+
+const uint32_t bamPeriods[6] = {
+    16,   // Bit 2 : 2^2 * base_unit
+    32,   // Bit 3 : 2^3 * base_unit
+    64,   // Bit 4 : 2^4 * base_unit
+    128,  // Bit 5 : 2^5 * base_unit
+    256,  // Bit 6 : 2^6 * base_unit
+    512
+};
