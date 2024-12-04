@@ -1,20 +1,41 @@
 
 #include "stm32f1xx_hal.h"
+#include <memory.h>
 
 #define LED_PIN                                GPIO_PIN_13
 #define LED_GPIO_PORT                          GPIOC
 #define LATCH_PIN							GPIO_PIN_4
 
-
 #define NBR_COLUMNS 3
 #define NBR_ROWS 8
+#define COLOR_RESOLUTION 8
 
+typedef struct s_color {
+	uint8_t	r;
+	uint8_t	g;
+	uint8_t	b;
+}	t_color;
+
+static t_color				colors[NBR_ROWS][NBR_COLUMNS];
 static	TIM_HandleTypeDef	htim2;
-static	SPI_HandleTypeDef hspi = {0};
+static	SPI_HandleTypeDef	hspi = {0};
 static volatile uint8_t		current_row = 0;
-static uint32_t	rows[NBR_ROWS] = {0};
+static volatile uint8_t		current_bam_bit = 0;
 
-#define SET_COLOR(row, col, value) (rows[row] = ((value) & ~(0b111 << ((col) * 3))) | ((value) << ((col) * 3)))
+static const uint16_t		BAM_PERIODS[COLOR_RESOLUTION] = {
+	4,    // Bit 0 : 2^0 * base_unit
+    8,    // Bit 1 : 2^1 * base_unit
+    16,   // Bit 2 : 2^2 * base_unit
+    32,   // Bit 3 : 2^3 * base_unit
+    64,   // Bit 4 : 2^4 * base_unit
+    128,  // Bit 5 : 2^5 * base_unit
+    256,  // Bit 6 : 2^6 * base_unit
+    512
+};
+
+#define GET_BIT_VALUE(r, g, b) (((r) << 0) | ((g) << 1) | ((b) << 2))
+#define COLUMN_SHIFT(col) ((((col) / 2 ) * 8) + (((col) % 2) * 3) + 8)
+// #define SET_COLOR(row, col, value) (rows[row] = ((value) & ~(0b111 << COLUMN_SHIFT(col))) | ((value) << COLUMN_SHIFT(col)))
 
 void LED_Init();
 
@@ -40,12 +61,25 @@ void TIM2_IRQHandler(void) {
 }
 
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
+	uint32_t	data = (0xFF & ~(1 << current_row));
+	t_color		color;
+
 	if (htim->Instance == TIM2) {
-		current_row = ++current_row % 8;
-		
-		// data |= 0xFF;
-		// data &= ~(1 << current_row);
-		SPI_Transmit((0xFF & ~(1 << current_row)) | ((rows[current_row]) << 8)); // Select COL1
+		// Update data from colors
+		for (uint8_t i = 0; i < NBR_COLUMNS; i++) {
+			color = colors[current_row][i];
+			data |= GET_BIT_VALUE(color.r, color.g, color.b) << COLUMN_SHIFT(i);
+		}
+
+		// Send data to shift register
+		SPI_Transmit(data); // Select COL1
+	
+		// Setup next interrupt by changing autoreload value
+		htim->Instance->ARR = BAM_PERIODS[current_bam_bit];
+
+		current_bam_bit = ++current_bam_bit % COLOR_RESOLUTION;
+		if (current_bam_bit == 0) // If end of cycle, select the next column
+			current_row = ++current_row % NBR_ROWS;
 	}
 }
 
@@ -115,6 +149,9 @@ static void SPI_Transmit(uint32_t data) {
 	// if (HAL_SPI_Transmit(hspi, data, 2, 1) != HAL_OK) {
 	// 	Error_Handler();
 	// }
+	if (HAL_SPI_Transmit(&hspi, (uint8_t*)&data + 3, 1, 1) != HAL_OK) {
+		Error_Handler();
+	}
 	if (HAL_SPI_Transmit(&hspi, (uint8_t*)&data + 2, 1, 1) != HAL_OK) {
 		Error_Handler();
 	}
@@ -144,15 +181,22 @@ int main(void) {
 	HAL_NVIC_SetPriority(TIM2_IRQn, 0, 0);
     HAL_NVIC_EnableIRQ(TIM2_IRQn);
 
-	uint8_t	color = 0; // R = 0, G = 1, B = 2
-	uint8_t	index = 0; // 0 => 7
-	uint8_t	values[] = {0b1, 0b10, 0b100, 0b011, 0b101, 0b110, 0b111};
+	uint32_t i = 0;
 	while (1) {
-		rows[index / NBR_COLUMNS] = 0;
-		SET_COLOR(index / NBR_COLUMNS, index % NBR_COLUMNS, values[color]);
-		color = ++color % 7;
-		index = ++index % (NBR_COLUMNS * NBR_ROWS);
+		colors[i / NBR_COLUMNS][i % NBR_COLUMNS] = (t_color){((i * 1000) % 255), ((i * 100) % 255), ((i * 10000) % 255)};
+		i = ++i % (NBR_COLUMNS * NBR_ROWS);
+		HAL_Delay(10);
 	}
+
+	// uint8_t	color = 0; // R = 0, G = 1, B = 2
+	// uint8_t	index = 0; // 0 => 7
+	// uint8_t	values[] = {0b1, 0b10, 0b100, 0b011, 0b101, 0b110, 0b111};
+	// while (1) {
+	// 	rows[index / NBR_COLUMNS] = 0;
+	// 	SET_COLOR(index / NBR_COLUMNS, index % NBR_COLUMNS, values[color]);
+	// 	color = ++color % 7;
+	// 	index = ++index % (NBR_COLUMNS * NBR_ROWS);
+	// }
 
 	// for (uint8_t i = 0; ; i = ++i % 8) {
 		
