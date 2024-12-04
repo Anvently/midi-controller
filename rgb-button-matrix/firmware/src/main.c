@@ -6,7 +6,7 @@
 #define LATCH_PIN							GPIO_PIN_4
 
 
-#define NBR_COLUMNS 3
+#define NBR_COLUMNS 4
 #define NBR_ROWS 8
 
 static	TIM_HandleTypeDef	htim2;
@@ -14,7 +14,8 @@ static	SPI_HandleTypeDef hspi = {0};
 static volatile uint8_t		current_row = 0;
 static uint32_t	rows[NBR_ROWS] = {0};
 
-#define SET_COLOR(row, col, value) (rows[row] = ((value) & ~(0b111 << ((col) * 3))) | ((value) << ((col) * 3)))
+#define SET_COLOR(row, col, value) (rows[row] = (rows[row] & ~((uint32_t)0b111 << ((col) * 3))) | ((uint32_t)(value) << ((col) * 3)))
+#define GET_COLOR_VALUE(i) (1 << i)
 
 void LED_Init();
 
@@ -45,7 +46,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
 		
 		// data |= 0xFF;
 		// data &= ~(1 << current_row);
-		SPI_Transmit((0xFF & ~(1 << current_row)) | ((rows[current_row]) << 8)); // Select COL1
+		SPI_Transmit((uint32_t)(0xFF & ~(1 << current_row)) | ((rows[current_row]) << 8)); // Select COL1
 	}
 }
 
@@ -147,13 +148,35 @@ int main(void) {
 	uint8_t	color = 0; // R = 0, G = 1, B = 2
 	uint8_t	index = 0; // 0 => 7
 	uint8_t	values[] = {0b1, 0b10, 0b100, 0b011, 0b101, 0b110, 0b111};
-	while (1) {
-		rows[index / NBR_COLUMNS] = 0;
-		SET_COLOR(index / NBR_COLUMNS, index % NBR_COLUMNS, values[color]);
-		color = ++color % 7;
-		index = ++index % (NBR_COLUMNS * NBR_ROWS);
-	}
+	// while (1) {
+	// 	rows[index / NBR_COLUMNS] = 0;
+	// 	SET_COLOR(index / NBR_COLUMNS, index % NBR_COLUMNS, (1 << (index % 3)));
+	// 	HAL_Delay(200);
+	// 	rows[index / NBR_COLUMNS] = 0;
+	// 	color = ++color % 7;
+	// 	index = ++index % (NBR_COLUMNS * NBR_ROWS * 3);
+	// }
 
+	// for (int i = 0; i < NBR_ROWS; i++) {
+	// 	for (int j = 0; j < NBR_COLUMNS; j++) {
+	// 		rows[i] = 0;
+	// 		SET_COLOR(i, j, 0b1);
+	// 		HAL_Delay(200);
+	// 		rows[i] = 0;
+	// 		SET_COLOR(i, j, 0b10);
+	// 		HAL_Delay(200);
+	// 		rows[i] = 0;
+	// 		SET_COLOR(i, j, 0b100);
+	// 		HAL_Delay(200);
+	// 	}
+	// }
+	// SET_COLOR(0, 0, 0b100);
+	// SET_COLOR(0, 1, 0b100);
+	// SET_COLOR(0, 2, 0b100);
+	rows[0] = 0b100100100;
+	rows[0] = 0xFFFFFF;
+	while (1);
+	
 	// for (uint8_t i = 0; ; i = ++i % 8) {
 		
 	// }
