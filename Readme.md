@@ -8,4 +8,9 @@ The controller integrates :
 
 ## RGB button matrix
 
+![led-matrix-schematic](rgb-button-matrix/rgb%20matrix%20schematic.pdf)
+
+![led-matrix-pcb-layout](rgb-button-matrix/pcb-layout.pdf)
+
+![schema-multiplexing-led-stm32](rgb-button-matrix/Schematic_Multiplexing_2024-12-07.png)
 ## Model case
