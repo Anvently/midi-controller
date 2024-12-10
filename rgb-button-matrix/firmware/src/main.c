@@ -6,9 +6,10 @@
 #define LED_GPIO_PORT                          GPIOC
 #define LATCH_PIN							GPIO_PIN_4
 
-#define NBR_COLUMNS 3
+#define NBR_COLUMNS 2
 #define NBR_ROWS 8
 #define COLOR_RESOLUTION 8
+#define BAM_PRESCALER 1
 
 typedef struct s_color {
 	uint8_t	r;
@@ -22,15 +23,15 @@ static	SPI_HandleTypeDef	hspi = {0};
 static volatile uint8_t		current_row = 0;
 static volatile uint8_t		current_bam_bit = 0;
 
-static const uint16_t		BAM_PERIODS[COLOR_RESOLUTION] = {
-	4,    // Bit 0 : 2^0 * base_unit
-    8,    // Bit 1 : 2^1 * base_unit
-    16,   // Bit 2 : 2^2 * base_unit
-    32,   // Bit 3 : 2^3 * base_unit
-    64,   // Bit 4 : 2^4 * base_unit
-    128,  // Bit 5 : 2^5 * base_unit
-    256,  // Bit 6 : 2^6 * base_unit
-    512
+static const uint32_t		BAM_PERIODS[COLOR_RESOLUTION] = {
+	4 * BAM_PRESCALER,    // Bit 0 : 2^0 * base_unit
+    8 * BAM_PRESCALER,    // Bit 1 : 2^1 * base_unit
+    16 * BAM_PRESCALER,   // Bit 2 : 2^2 * base_unit
+    32 * BAM_PRESCALER,   // Bit 3 : 2^3 * base_unit
+    64 * BAM_PRESCALER,   // Bit 4 : 2^4 * base_unit
+    128 * BAM_PRESCALER,  // Bit 5 : 2^5 * base_unit
+    256 * BAM_PRESCALER,  // Bit 6 : 2^6 * base_unit
+    512 * BAM_PRESCALER
 };
 
 #define GET_BIT_VALUE(r, g, b) (((r) << 0) | ((g) << 1) | ((b) << 2))
@@ -61,14 +62,17 @@ void TIM2_IRQHandler(void) {
 }
 
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
-	uint32_t	data = (0xFF & ~(1 << current_row));
+	uint32_t	data = (1 << current_row);
 	t_color		color;
 
 	if (htim->Instance == TIM2) {
 		// Update data from colors
 		for (uint8_t i = 0; i < NBR_COLUMNS; i++) {
 			color = colors[current_row][i];
-			data |= GET_BIT_VALUE(color.r, color.g, color.b) << COLUMN_SHIFT(i);
+			data |= (GET_BIT_VALUE(
+				((color.r & current_bam_bit) != 0),
+				((color.g & current_bam_bit) != 0),
+				((color.b & current_bam_bit) != 0)) << COLUMN_SHIFT(i));
 		}
 
 		// Send data to shift register
@@ -76,6 +80,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
 	
 		// Setup next interrupt by changing autoreload value
 		htim->Instance->ARR = BAM_PERIODS[current_bam_bit];
+		// htim->Instance->EGR = TIM_EGR_UG; // Update timer now instead of waiting for next cycle
 
 		current_bam_bit = ++current_bam_bit % COLOR_RESOLUTION;
 		if (current_bam_bit == 0) // If end of cycle, select the next column
@@ -132,7 +137,7 @@ void SPI1_Init(SPI_HandleTypeDef* hspi) {
 	hspi->Init.CLKPolarity = SPI_POLARITY_LOW;  // Polarité du signal d'horloge
 	hspi->Init.CLKPhase = SPI_PHASE_1EDGE;  // Données capturées sur front montant
 	hspi->Init.NSS = SPI_NSS_SOFT;  // Gestion manuelle de NSS
-	hspi->Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_16;  // Vitesse
+	hspi->Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_2;  // Vitesse
 	hspi->Init.FirstBit = SPI_FIRSTBIT_MSB;  // MSB d'abord
 	hspi->Init.TIMode = SPI_TIMODE_DISABLE;  // Pas de mode TI
 	hspi->Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;  // Pas de CRC
@@ -181,12 +186,19 @@ int main(void) {
 	HAL_NVIC_SetPriority(TIM2_IRQn, 0, 0);
     HAL_NVIC_EnableIRQ(TIM2_IRQn);
 
-	uint32_t i = 0;
-	while (1) {
-		colors[i / NBR_COLUMNS][i % NBR_COLUMNS] = (t_color){((i * 1000) % 255), ((i * 100) % 255), ((i * 10000) % 255)};
-		i = ++i % (NBR_COLUMNS * NBR_ROWS);
-		HAL_Delay(10);
+	for (uint8_t i = 0; i < NBR_ROWS; i++) {
+		colors[i][0] = (t_color){0, 0, 0};
+		colors[i][1] = (t_color){0, 0, 0};
 	}
+	colors[4][0] = (t_color){255, 0, 0};
+	colors[5][0] = (t_color){125, 0, 0};
+	while (1);
+	// uint32_t i = 0;
+	// while (1) {
+	// 	colors[i / NBR_COLUMNS][i % NBR_COLUMNS] = (t_color){((i * 1000) % 255), ((i * 100) % 255), ((i * 10000) % 255)};
+	// 	i = ++i % (NBR_COLUMNS * NBR_ROWS);
+	// 	HAL_Delay(10);
+	// }
 
 	// uint8_t	color = 0; // R = 0, G = 1, B = 2
 	// uint8_t	index = 0; // 0 => 7
