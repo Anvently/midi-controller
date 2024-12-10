@@ -222,16 +222,16 @@ int main(void) {
 	colors[7][1] = (t_color){0, 8 * 31, 0};
 
 
-	// uint8_t	pos = 0; // 0 => 255
-	// uint16_t	index = 0; // 0 => 48
-	// uint8_t color_per_cell = 255;
-	// while (1) {
-	// 	colors[index / (NBR_COLUMNS * color_per_cell)][(index % (NBR_COLUMNS * color_per_cell)) / color_per_cell] = wheel(pos);
-	// 	HAL_Delay(1);
-	// 	// colors[index / (NBR_COLUMNS * color_per_cell)][(index % (NBR_COLUMNS * color_per_cell)) / color_per_cell] = (t_color){0};
-	// 	pos++;
-	// 	index = ++index % (NBR_COLUMNS * NBR_ROWS * color_per_cell);
-	// }
+	uint8_t	pos = 0; // 0 => 255
+	uint16_t	index = 0; // 0 => 48
+	uint8_t color_per_cell = 255;
+	while (1) {
+		colors[index / (NBR_COLUMNS * color_per_cell)][(index % (NBR_COLUMNS * color_per_cell)) / color_per_cell] = wheel(pos);
+		// HAL_Delay(1);
+		// colors[index / (NBR_COLUMNS * color_per_cell)][(index % (NBR_COLUMNS * color_per_cell)) / color_per_cell] = (t_color){0};
+		pos++;
+		index = ++index % (NBR_COLUMNS * NBR_ROWS * color_per_cell);
+	}
 	while (1);
 
 }
