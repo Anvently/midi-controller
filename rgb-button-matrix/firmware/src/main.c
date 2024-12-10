@@ -144,18 +144,22 @@ int main(void) {
 	HAL_NVIC_SetPriority(TIM2_IRQn, 0, 0);
     HAL_NVIC_EnableIRQ(TIM2_IRQn);
 
-	uint8_t	color = 0; // R = 0, G = 1, B = 2
-	uint8_t	index = 0; // 0 => 7
-	uint8_t	values[] = {0b1, 0b10, 0b100, 0b011, 0b101, 0b110, 0b111};
-	uint8_t	color_per_cell = 1;
-	while (1) {
-		// rows[index / (NBR_COLUMNS * 3)] = 0;
-		SET_COLOR(index / (NBR_COLUMNS * color_per_cell), (index % (NBR_COLUMNS * color_per_cell)) / color_per_cell, values[color]);
-		HAL_Delay(150);
-		rows[index / (NBR_COLUMNS * color_per_cell)] = 0;
-		color = ++color % 7;
-		index = ++index % (NBR_COLUMNS * NBR_ROWS * color_per_cell);
-	}
+	// uint8_t	color = 0; // R = 0, G = 1, B = 2
+	// uint8_t	index = 0; // 0 => 7
+	// uint8_t	values[] = {0b1, 0b10, 0b100, 0b011, 0b101, 0b110, 0b111};
+	// uint8_t	color_per_cell = 1;
+	// while (1) {
+	// 	// rows[index / (NBR_COLUMNS * 3)] = 0;
+	// 	SET_COLOR(index / (NBR_COLUMNS * color_per_cell), (index % (NBR_COLUMNS * color_per_cell)) / color_per_cell, values[color]);
+	// 	HAL_Delay(150);
+	// 	rows[index / (NBR_COLUMNS * color_per_cell)] = 0;
+	// 	color = ++color % 7;
+	// 	index = ++index % (NBR_COLUMNS * NBR_ROWS * color_per_cell);
+	// }
+	SET_COLOR(4, 0, 0b100);
+	SET_COLOR(5, 0, 0b010);
+	SET_COLOR(6, 0, 0b001);
+	while (1);
 	// while (1) {
 	// 	for (int i = 0; i < NBR_ROWS; i++) {
 	// 		for (int j = 0; j < NBR_ROWS; j++) {
