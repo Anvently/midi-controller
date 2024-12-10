@@ -6,7 +6,7 @@
 #define LATCH_PIN							GPIO_PIN_4
 
 
-#define NBR_COLUMNS 4
+#define NBR_COLUMNS 2
 #define NBR_ROWS 8
 
 static	TIM_HandleTypeDef	htim2;
@@ -19,7 +19,7 @@ static uint32_t	rows[NBR_ROWS] = {0};
 
 void LED_Init();
 
-static void SPI_Transmit();
+static void SPI_Transmit(uint32_t data);
 
 static void	Error_Handler(void) {
 	HAL_GPIO_WritePin(LED_GPIO_PORT, LED_PIN, GPIO_PIN_SET);
@@ -44,9 +44,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
 	if (htim->Instance == TIM2) {
 		current_row = ++current_row % 8;
 		
-		// data |= 0xFF;
-		// data &= ~(1 << current_row);
-		SPI_Transmit((uint32_t)(0xFF & ~(1 << current_row)) | ((rows[current_row]) << 8)); // Select COL1
+		SPI_Transmit(((1 << current_row)) | (rows[current_row] << 8)); // Select COL1
 	}
 }
 
@@ -112,13 +110,14 @@ void SPI1_Init(SPI_HandleTypeDef* hspi) {
 }
 
 static void SPI_Transmit(uint32_t data) {
+
 	HAL_GPIO_WritePin(GPIOA, LATCH_PIN, 0);
 	// if (HAL_SPI_Transmit(hspi, data, 2, 1) != HAL_OK) {
 	// 	Error_Handler();
 	// }
-	if (HAL_SPI_Transmit(&hspi, (uint8_t*)&data + 2, 1, 1) != HAL_OK) {
-		Error_Handler();
-	}
+	// if (HAL_SPI_Transmit(&hspi, (uint8_t*)&data + 2, 1, 1) != HAL_OK) {
+	// 	Error_Handler();
+	// }
 	if (HAL_SPI_Transmit(&hspi, (uint8_t*)&data + 1, 1, 1) != HAL_OK) {
 		Error_Handler();
 	}
@@ -148,41 +147,32 @@ int main(void) {
 	uint8_t	color = 0; // R = 0, G = 1, B = 2
 	uint8_t	index = 0; // 0 => 7
 	uint8_t	values[] = {0b1, 0b10, 0b100, 0b011, 0b101, 0b110, 0b111};
+	uint8_t	color_per_cell = 1;
+	while (1) {
+		// rows[index / (NBR_COLUMNS * 3)] = 0;
+		SET_COLOR(index / (NBR_COLUMNS * color_per_cell), (index % (NBR_COLUMNS * color_per_cell)) / color_per_cell, values[color]);
+		HAL_Delay(150);
+		rows[index / (NBR_COLUMNS * color_per_cell)] = 0;
+		color = ++color % 7;
+		index = ++index % (NBR_COLUMNS * NBR_ROWS * color_per_cell);
+	}
 	// while (1) {
-	// 	rows[index / NBR_COLUMNS] = 0;
-	// 	SET_COLOR(index / NBR_COLUMNS, index % NBR_COLUMNS, (1 << (index % 3)));
-	// 	HAL_Delay(200);
-	// 	rows[index / NBR_COLUMNS] = 0;
-	// 	color = ++color % 7;
-	// 	index = ++index % (NBR_COLUMNS * NBR_ROWS * 3);
+	// 	for (int i = 0; i < NBR_ROWS; i++) {
+	// 		for (int j = 0; j < NBR_ROWS; j++) {
+	// 				rows[j] = 0xFF;
+	// 				SET_COLOR(i, j, 0b1);
+	// 				HAL_Delay(1);
+	// 				rows[i] = 0;
+	// 				SET_COLOR(i, j, 0b10);
+	// 				HAL_Delay(1);
+	// 				rows[i] = 0;
+	// 				SET_COLOR(i, j, 0b100);
+	// 				HAL_Delay(10);
+	// 			}
+			
+	// 	}
+	
 	// }
 
-	// for (int i = 0; i < NBR_ROWS; i++) {
-	// 	for (int j = 0; j < NBR_COLUMNS; j++) {
-	// 		rows[i] = 0;
-	// 		SET_COLOR(i, j, 0b1);
-	// 		HAL_Delay(200);
-	// 		rows[i] = 0;
-	// 		SET_COLOR(i, j, 0b10);
-	// 		HAL_Delay(200);
-	// 		rows[i] = 0;
-	// 		SET_COLOR(i, j, 0b100);
-	// 		HAL_Delay(200);
-	// 	}
-	// }
-	// SET_COLOR(0, 0, 0b100);
-	// SET_COLOR(0, 1, 0b100);
-	// SET_COLOR(0, 2, 0b100);
-	rows[0] = 0b100100100;
-	rows[0] = 0xFFFFFF;
 	while (1);
-	
-	// for (uint8_t i = 0; ; i = ++i % 8) {
-		
-	// }
-	// while (1)
-	// {
-	// 	SPI_Transmit(&hspi, 0xFF & ~(0b10)); // Select COL1
-	// 	HAL_Delay(200);
-	// }
 }
