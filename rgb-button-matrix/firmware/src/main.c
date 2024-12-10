@@ -9,7 +9,7 @@
 #define NBR_COLUMNS 2
 #define NBR_ROWS 8
 #define COLOR_RESOLUTION 8
-#define BAM_PRESCALER 1
+#define BAM_PRESCALER 0.5
 
 typedef struct s_color {
 	uint8_t	r;
@@ -24,14 +24,14 @@ static volatile uint8_t		current_row = 0;
 static volatile uint8_t		current_bam_bit = 0;
 
 static const uint32_t		BAM_PERIODS[COLOR_RESOLUTION] = {
-	4 * BAM_PRESCALER,    // Bit 0 : 2^0 * base_unit
-    8 * BAM_PRESCALER,    // Bit 1 : 2^1 * base_unit
-    16 * BAM_PRESCALER,   // Bit 2 : 2^2 * base_unit
-    32 * BAM_PRESCALER,   // Bit 3 : 2^3 * base_unit
-    64 * BAM_PRESCALER,   // Bit 4 : 2^4 * base_unit
-    128 * BAM_PRESCALER,  // Bit 5 : 2^5 * base_unit
-    256 * BAM_PRESCALER,  // Bit 6 : 2^6 * base_unit
-    512 * BAM_PRESCALER
+	4UL * BAM_PRESCALER,    // Bit 0 : 2^0 * base_unit
+    8UL * BAM_PRESCALER,    // Bit 1 : 2^1 * base_unit
+    16UL * BAM_PRESCALER,   // Bit 2 : 2^2 * base_unit
+    32UL * BAM_PRESCALER,   // Bit 3 : 2^3 * base_unit
+    64UL * BAM_PRESCALER,   // Bit 4 : 2^4 * base_unit
+    128UL * BAM_PRESCALER,  // Bit 5 : 2^5 * base_unit
+    256UL * BAM_PRESCALER,  // Bit 6 : 2^6 * base_unit
+    512UL * BAM_PRESCALER
 };
 
 #define GET_BIT_VALUE(r, g, b) (((r) << 0) | ((g) << 1) | ((b) << 2))
@@ -80,7 +80,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
 	
 		// Setup next interrupt by changing autoreload value
 		htim->Instance->ARR = BAM_PERIODS[current_bam_bit];
-		// htim->Instance->EGR = TIM_EGR_UG; // Update timer now instead of waiting for next cycle
+		htim->Instance->CNT = 0;
 
 		current_bam_bit = ++current_bam_bit % COLOR_RESOLUTION;
 		if (current_bam_bit == 0) // If end of cycle, select the next column
@@ -94,9 +94,9 @@ void Timer2_Init(void) {
 	htim2.Instance = TIM2;
 	htim2.Init.Prescaler = (SystemCoreClock / 1000000) - 1; // Prescaler pour µs
 	htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
-	htim2.Init.Period = 999; // Période pour 1 ms
+	htim2.Init.Period = BAM_PERIODS[COLOR_RESOLUTION - 1]; // Période pour 1 ms
 	htim2.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
-	htim2.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_ENABLE;
+	htim2.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
 
 	if (HAL_TIM_Base_Init(&htim2) != HAL_OK) {
 		Error_Handler();
@@ -202,9 +202,25 @@ int main(void) {
     HAL_NVIC_EnableIRQ(TIM2_IRQn);
 
 	// colors[3][1] = (t_color){255, 141, 34};
-	colors[6][0] = (t_color){255, 0, 0};
-	colors[5][0] = (t_color){0, 255, 0};
-	colors[4][0] = (t_color){0, 0, 255};
+	// colors[6][0] = (t_color){0, 255, 0};
+	// colors[5][0] = (t_color){0, 129, 0};
+	colors[0][0] = (t_color){0, 8 * 1, 0};
+	colors[0][1] = (t_color){0, 8 * 3, 0};
+	colors[1][0] = (t_color){0, 8 * 5, 0};
+	colors[1][1] = (t_color){0, 8 * 7, 0};
+	colors[2][0] = (t_color){0, 8 * 9, 0};
+	colors[2][1] = (t_color){0, 8 * 11, 0};
+	colors[3][0] = (t_color){0, 8 * 13, 0};
+	colors[3][1] = (t_color){0, 8 * 15, 0};
+	colors[4][0] = (t_color){0, 8 * 17, 0};
+	colors[4][1] = (t_color){0, 8 * 19, 0};
+	colors[5][0] = (t_color){0, 8 * 21, 0};
+	colors[5][1] = (t_color){0, 8 * 23, 0};
+	colors[6][0] = (t_color){0, 8 * 25, 0};
+	colors[6][1] = (t_color){0, 8 * 27, 0};
+	colors[7][0] = (t_color){0, 8 * 29, 0};
+	colors[7][1] = (t_color){0, 8 * 31, 0};
+
 
 	// uint8_t	pos = 0; // 0 => 255
 	// uint16_t	index = 0; // 0 => 48
