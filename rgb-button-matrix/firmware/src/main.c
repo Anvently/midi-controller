@@ -70,9 +70,9 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
 		for (uint8_t i = 0; i < NBR_COLUMNS; i++) {
 			color = colors[current_row][i];
 			data |= (GET_BIT_VALUE(
-				((color.r & current_bam_bit) != 0),
-				((color.g & current_bam_bit) != 0),
-				((color.b & current_bam_bit) != 0)) << COLUMN_SHIFT(i));
+				((color.r & (1 << current_bam_bit)) != 0),
+				((color.g & (1 << current_bam_bit)) != 0),
+				((color.b & (1 << current_bam_bit)) != 0)) << COLUMN_SHIFT(i));
 		}
 
 		// Send data to shift register
@@ -96,7 +96,7 @@ void Timer2_Init(void) {
 	htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
 	htim2.Init.Period = 999; // Période pour 1 ms
 	htim2.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
-	htim2.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+	htim2.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_ENABLE;
 
 	if (HAL_TIM_Base_Init(&htim2) != HAL_OK) {
 		Error_Handler();
@@ -173,6 +173,21 @@ void SysTick_Handler(void) {
 	HAL_IncTick();
 }
 
+t_color wheel(uint8_t pos) {
+	t_color result;
+
+	pos = 255 - pos;
+	if (pos < 85) {
+		return ((t_color){255 - pos * 3, 0, pos * 3});
+	} else if (pos < 170) {
+		pos = pos - 85;
+		return ((t_color){0, pos * 3, 255 - pos * 3});
+	;
+	} else {
+		pos = pos - 170;
+		return ((t_color){pos * 3, 255 - pos * 3, 0});
+	}
+}
 
 int main(void) {
 	HAL_Init();
@@ -186,36 +201,21 @@ int main(void) {
 	HAL_NVIC_SetPriority(TIM2_IRQn, 0, 0);
     HAL_NVIC_EnableIRQ(TIM2_IRQn);
 
-	for (uint8_t i = 0; i < NBR_ROWS; i++) {
-		colors[i][0] = (t_color){0, 0, 0};
-		colors[i][1] = (t_color){0, 0, 0};
-	}
-	colors[4][0] = (t_color){255, 0, 0};
-	colors[5][0] = (t_color){125, 0, 0};
+	colors[3][1] = (t_color){255, 141, 34};
+	colors[4][1] = (t_color){0, 255, 0};
+	colors[5][0] = (t_color){0, 0, 255};
+	colors[6][0] = (t_color){255, 0, 0};
+
+	// uint8_t	pos = 0; // 0 => 255
+	// uint16_t	index = 0; // 0 => 48
+	// uint8_t color_per_cell = 255;
+	// while (1) {
+	// 	colors[index / (NBR_COLUMNS * color_per_cell)][(index % (NBR_COLUMNS * color_per_cell)) / color_per_cell] = wheel(pos);
+	// 	HAL_Delay(1);
+	// 	// colors[index / (NBR_COLUMNS * color_per_cell)][(index % (NBR_COLUMNS * color_per_cell)) / color_per_cell] = (t_color){0};
+	// 	pos++;
+	// 	index = ++index % (NBR_COLUMNS * NBR_ROWS * color_per_cell);
+	// }
 	while (1);
-	// uint32_t i = 0;
-	// while (1) {
-	// 	colors[i / NBR_COLUMNS][i % NBR_COLUMNS] = (t_color){((i * 1000) % 255), ((i * 100) % 255), ((i * 10000) % 255)};
-	// 	i = ++i % (NBR_COLUMNS * NBR_ROWS);
-	// 	HAL_Delay(10);
-	// }
 
-	// uint8_t	color = 0; // R = 0, G = 1, B = 2
-	// uint8_t	index = 0; // 0 => 7
-	// uint8_t	values[] = {0b1, 0b10, 0b100, 0b011, 0b101, 0b110, 0b111};
-	// while (1) {
-	// 	rows[index / NBR_COLUMNS] = 0;
-	// 	SET_COLOR(index / NBR_COLUMNS, index % NBR_COLUMNS, values[color]);
-	// 	color = ++color % 7;
-	// 	index = ++index % (NBR_COLUMNS * NBR_ROWS);
-	// }
-
-	// for (uint8_t i = 0; ; i = ++i % 8) {
-		
-	// }
-	// while (1)
-	// {
-	// 	SPI_Transmit(&hspi, 0xFF & ~(0b10)); // Select COL1
-	// 	HAL_Delay(200);
-	// }
 }
