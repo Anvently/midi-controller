@@ -201,10 +201,10 @@ int main(void) {
 	HAL_NVIC_SetPriority(TIM2_IRQn, 0, 0);
     HAL_NVIC_EnableIRQ(TIM2_IRQn);
 
-	colors[3][1] = (t_color){255, 141, 34};
-	colors[4][1] = (t_color){0, 255, 0};
-	colors[5][0] = (t_color){0, 0, 255};
+	// colors[3][1] = (t_color){255, 141, 34};
 	colors[6][0] = (t_color){255, 0, 0};
+	colors[5][0] = (t_color){0, 255, 0};
+	colors[4][0] = (t_color){0, 0, 255};
 
 	// uint8_t	pos = 0; // 0 => 255
 	// uint16_t	index = 0; // 0 => 48
