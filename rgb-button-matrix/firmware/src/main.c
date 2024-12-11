@@ -6,10 +6,10 @@
 #define LED_GPIO_PORT                          GPIOC
 #define LATCH_PIN							GPIO_PIN_4
 
-#define NBR_COLUMNS 2
+#define NBR_COLUMNS 6
 #define NBR_ROWS 8
 #define COLOR_RESOLUTION 8
-#define BAM_PRESCALER 0.5
+#define BAM_PRESCALER 1
 
 typedef struct s_color {
 	uint8_t	r;
@@ -58,34 +58,30 @@ void LED_Init() {
 }
 
 void TIM2_IRQHandler(void) {
-	HAL_TIM_IRQHandler(&htim2); // Appelle la fonction de gestion HAL
-}
-
-void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
 	uint32_t	data = (1 << current_row);
 	t_color		color;
 
-	if (htim->Instance == TIM2) {
-		// Update data from colors
-		for (uint8_t i = 0; i < NBR_COLUMNS; i++) {
-			color = colors[current_row][i];
-			data |= (GET_BIT_VALUE(
-				((color.r & (1 << current_bam_bit)) != 0),
-				((color.g & (1 << current_bam_bit)) != 0),
-				((color.b & (1 << current_bam_bit)) != 0)) << COLUMN_SHIFT(i));
-		}
-
-		// Send data to shift register
-		SPI_Transmit(data); // Select COL1
-	
-		// Setup next interrupt by changing autoreload value
-		htim->Instance->ARR = BAM_PERIODS[current_bam_bit];
-		htim->Instance->CNT = 0;
-
-		current_bam_bit = ++current_bam_bit % COLOR_RESOLUTION;
-		if (current_bam_bit == 0) // If end of cycle, select the next column
-			current_row = ++current_row % NBR_ROWS;
+	uint32_t old_value = TIM2->CNT;
+	// Update data from colors
+	for (uint8_t i = 0; i < NBR_COLUMNS; i++) {
+		color = colors[current_row][i];
+		data |= (GET_BIT_VALUE(
+			((color.r & (1 << current_bam_bit)) != 0),
+			((color.g & (1 << current_bam_bit)) != 0),
+			((color.b & (1 << current_bam_bit)) != 0)) << COLUMN_SHIFT(i));
 	}
+
+	// Send data to shift register
+	SPI_Transmit(data); // Select COL1
+
+	// Setup next interrupt by changing autoreload value
+	TIM2->ARR = BAM_PERIODS[current_bam_bit];
+	TIM2->CNT = 0;
+
+	current_bam_bit = ++current_bam_bit % COLOR_RESOLUTION;
+	if (current_bam_bit == 0) // If end of cycle, select the next column
+		current_row = ++current_row % NBR_ROWS;
+	TIM2->SR &= (uint16_t)~TIM_IT_UPDATE;
 }
 
 void Timer2_Init(void) {
@@ -137,7 +133,7 @@ void SPI1_Init(SPI_HandleTypeDef* hspi) {
 	hspi->Init.CLKPolarity = SPI_POLARITY_LOW;  // Polarité du signal d'horloge
 	hspi->Init.CLKPhase = SPI_PHASE_1EDGE;  // Données capturées sur front montant
 	hspi->Init.NSS = SPI_NSS_SOFT;  // Gestion manuelle de NSS
-	hspi->Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_2;  // Vitesse
+	hspi->Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_4;  // Vitesse
 	hspi->Init.FirstBit = SPI_FIRSTBIT_MSB;  // MSB d'abord
 	hspi->Init.TIMode = SPI_TIMODE_DISABLE;  // Pas de mode TI
 	hspi->Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;  // Pas de CRC
@@ -189,6 +185,49 @@ t_color wheel(uint8_t pos) {
 	}
 }
 
+void	show_intensity(uint8_t r, uint8_t g, uint8_t b) {
+	const uint16_t	steps = NBR_COLUMNS * NBR_ROWS;
+	const uint8_t	max = (0xFF >> (8 - COLOR_RESOLUTION));
+	// const uint8_t	step_value = max / steps;
+	uint16_t			value = 0;
+
+	for (uint8_t i = i; i < NBR_COLUMNS; i++) {
+		for (uint8_t j = 0; j < NBR_ROWS; j++) {
+			value = (((i * NBR_ROWS) + j) * max) / steps;
+			colors[j][i] =  (t_color){(r ? value : 0), (g ? value : 0), (b ? value : 0)};
+		}
+	} 
+}
+
+void SystemClock_Config(void) {
+	RCC_OscInitTypeDef RCC_OscInitStruct = {0};
+	RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
+
+	// 1. Configurer l'oscillateur principal
+	RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSE; // Utiliser HSE
+	RCC_OscInitStruct.HSEState = RCC_HSE_ON; // Activer HSE
+	RCC_OscInitStruct.HSEPredivValue = RCC_HSE_PREDIV_DIV1; // Pas de division sur HSE
+	RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON; // Activer PLL
+	RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE; // Source PLL = HSE
+	RCC_OscInitStruct.PLL.PLLMUL = RCC_PLL_MUL9; // Multiplier par 9 (8 MHz * 9 = 72 MHz)
+	if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK) {
+		// Gestion d'erreur
+		while (1);
+	}
+
+	// 2. Configurer les prescalers pour les bus AHB, APB1 et APB2
+	RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK | RCC_CLOCKTYPE_SYSCLK |
+								RCC_CLOCKTYPE_PCLK1 | RCC_CLOCKTYPE_PCLK2;
+	RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK; // Source SYSCLK = PLL
+	RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1; // AHB = /1
+	RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV2; // APB1 = /2 (max 36 MHz)
+	RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1; // APB2 = /1
+	if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_2) != HAL_OK) {
+		// Gestion d'erreur
+		while (1);
+	}
+}
+
 int main(void) {
 	HAL_Init();
 
@@ -196,42 +235,42 @@ int main(void) {
 	SPI_GPIO_Init();
 	SPI1_Init(&hspi);
 
-	// SystemClock_Config();
+	SystemClock_Config();
 	Timer2_Init();
 	HAL_NVIC_SetPriority(TIM2_IRQn, 0, 0);
     HAL_NVIC_EnableIRQ(TIM2_IRQn);
 
-	// colors[3][1] = (t_color){255, 141, 34};
-	// colors[6][0] = (t_color){0, 255, 0};
-	// colors[5][0] = (t_color){0, 129, 0};
-	colors[0][0] = (t_color){0, 8 * 1, 0};
-	colors[0][1] = (t_color){0, 8 * 3, 0};
-	colors[1][0] = (t_color){0, 8 * 5, 0};
-	colors[1][1] = (t_color){0, 8 * 7, 0};
-	colors[2][0] = (t_color){0, 8 * 9, 0};
-	colors[2][1] = (t_color){0, 8 * 11, 0};
-	colors[3][0] = (t_color){0, 8 * 13, 0};
-	colors[3][1] = (t_color){0, 8 * 15, 0};
-	colors[4][0] = (t_color){0, 8 * 17, 0};
-	colors[4][1] = (t_color){0, 8 * 19, 0};
-	colors[5][0] = (t_color){0, 8 * 21, 0};
-	colors[5][1] = (t_color){0, 8 * 23, 0};
-	colors[6][0] = (t_color){0, 8 * 25, 0};
-	colors[6][1] = (t_color){0, 8 * 27, 0};
-	colors[7][0] = (t_color){0, 8 * 29, 0};
-	colors[7][1] = (t_color){0, 8 * 31, 0};
+	show_intensity(1, 0, 0);
 
+	// colors[0][0] = (t_color){15, 0, 0};
+	// colors[0][1] = (t_color){16, 0, 0};
+	// colors[2][0] = (t_color){16, 0, 0};
+	// colors[3][0] = (t_color){17, 0, 0};
+	// colors[2][0] = (t_color){255, 0, 0};
+	// colors[3][0] = (t_color){255, 0, 0};
+	// colors[4][0] = (t_color){255, 0, 0};
+	// colors[5][0] = (t_color){255, 0, 0};
+	// colors[6][0] = (t_color){255, 0, 0};
+	// colors[7][0] = (t_color){255, 0, 0};
+	// colors[0][1] = (t_color){255, 0, 0};
+	// colors[1][1] = (t_color){255, 0, 0};
+	// colors[2][1] = (t_color){255, 0, 0};
+	// colors[3][1] = (t_color){255, 0, 0};
+	// colors[4][1] = (t_color){255, 0, 0};
+	// colors[5][1] = (t_color){255, 0, 0};
+	// colors[6][1] = (t_color){255, 0, 0};
+	// colors[7][1] = (t_color){255, 0, 0};
 
-	uint8_t	pos = 0; // 0 => 255
-	uint16_t	index = 0; // 0 => 48
-	uint8_t color_per_cell = 255;
-	while (1) {
-		colors[index / (NBR_COLUMNS * color_per_cell)][(index % (NBR_COLUMNS * color_per_cell)) / color_per_cell] = wheel(pos);
-		// HAL_Delay(1);
-		// colors[index / (NBR_COLUMNS * color_per_cell)][(index % (NBR_COLUMNS * color_per_cell)) / color_per_cell] = (t_color){0};
-		pos++;
-		index = ++index % (NBR_COLUMNS * NBR_ROWS * color_per_cell);
-	}
+	// uint8_t	pos = 0; // 0 => 255
+	// uint16_t	index = 0; // 0 => 48
+	// uint8_t color_per_cell = 255;
+	// while (1) {
+	// 	colors[index / (NBR_COLUMNS * color_per_cell)][(index % (NBR_COLUMNS * color_per_cell)) / color_per_cell] = wheel(pos);
+	// 	// HAL_Delay(1);
+	// 	// colors[index / (NBR_COLUMNS * color_per_cell)][(index % (NBR_COLUMNS * color_per_cell)) / color_per_cell] = (t_color){0};
+	// 	pos++;
+	// 	index = ++index % (NBR_COLUMNS * NBR_ROWS * color_per_cell);
+	// }
 	while (1);
 
 }
