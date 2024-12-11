@@ -186,19 +186,6 @@ t_color wheel(uint8_t pos) {
 	}
 }
 
-void	show_intensity(uint8_t r, uint8_t g, uint8_t b) {
-	const uint16_t	steps = NBR_COLUMNS * NBR_ROWS;
-	const uint8_t	max = (0xFF >> (8 - COLOR_RESOLUTION));
-	// const uint8_t	step_value = max / steps;
-	uint16_t			value = 0;
-
-	for (uint8_t i = i; i < NBR_COLUMNS; i++) {
-		for (uint8_t j = 0; j < NBR_ROWS; j++) {
-			value = (((i * NBR_ROWS) + j) * max) / steps;
-			colors[j][i] =  (t_color){(r ? value : 0), (g ? value : 0), (b ? value : 0)};
-		}
-	} 
-}
 
 void SystemClock_Config(void) {
 	RCC_OscInitTypeDef RCC_OscInitStruct = {0};
@@ -229,6 +216,47 @@ void SystemClock_Config(void) {
 	}
 }
 
+void	show_intensity(uint8_t r, uint8_t g, uint8_t b) {
+	const uint16_t	steps = NBR_COLUMNS * NBR_ROWS;
+	const uint8_t	max = (0xFF >> (8 - COLOR_RESOLUTION));
+	// const uint8_t	step_value = max / steps;
+	uint16_t			value = 0;
+
+	for (uint8_t i = i; i < NBR_COLUMNS; i++) {
+		for (uint8_t j = 0; j < NBR_ROWS; j++) {
+			value = (((i * NBR_ROWS) + j) * max) / steps;
+			colors[j][i] =  (t_color){(r ? value : 0), (g ? value : 0), (b ? value : 0)};
+		}
+	} 
+}
+
+void	trigger_color_wheel(void) {
+	uint8_t		pos = 0; // 0 => 255
+	uint16_t	index = 0; // 0 => 48
+	uint16_t		color_per_cell = 255 / 4;
+	while (1) {
+		colors[index / (NBR_COLUMNS * color_per_cell)][(index % (NBR_COLUMNS * color_per_cell)) / color_per_cell] = wheel(pos);
+		// HAL_Delay(1);
+		// colors[index / (NBR_COLUMNS * color_per_cell)][(index % (NBR_COLUMNS * color_per_cell)) / color_per_cell] = (t_color){0};
+		pos++;
+		index = ++index % (NBR_COLUMNS * NBR_ROWS * color_per_cell);
+		HAL_Delay(1);
+	}
+
+}
+
+void	set_row(uint8_t row, t_color color) {
+	for (uint8_t col = 0; col < NBR_COLUMNS; col++) {
+		colors[row][col] = color;
+	}
+}
+
+void	set_col(uint8_t col, t_color color) {
+	for (uint8_t row = 0; row < NBR_ROWS; row++) {
+		colors[row][col] = color;
+	}
+}
+
 int main(void) {
 	HAL_Init();
 
@@ -241,37 +269,15 @@ int main(void) {
 	HAL_NVIC_SetPriority(TIM2_IRQn, 0, 0);
     HAL_NVIC_EnableIRQ(TIM2_IRQn);
 
-	show_intensity(1, 0, 0);
-
-	// colors[0][0] = (t_color){15, 0, 0};
-	// colors[0][1] = (t_color){16, 0, 0};
-	// colors[2][0] = (t_color){16, 0, 0};
-	// colors[3][0] = (t_color){17, 0, 0};
-	// colors[2][0] = (t_color){255, 0, 0};
-	// colors[3][0] = (t_color){255, 0, 0};
-	// colors[4][0] = (t_color){255, 0, 0};
-	// colors[5][0] = (t_color){255, 0, 0};
-	// colors[6][0] = (t_color){255, 0, 0};
-	// colors[7][0] = (t_color){255, 0, 0};
-	// colors[0][1] = (t_color){255, 0, 0};
-	// colors[1][1] = (t_color){255, 0, 0};
-	// colors[2][1] = (t_color){255, 0, 0};
-	// colors[3][1] = (t_color){255, 0, 0};
-	// colors[4][1] = (t_color){255, 0, 0};
-	// colors[5][1] = (t_color){255, 0, 0};
-	// colors[6][1] = (t_color){255, 0, 0};
-	// colors[7][1] = (t_color){255, 0, 0};
-
-	// uint8_t	pos = 0; // 0 => 255
-	// uint16_t	index = 0; // 0 => 48
-	// uint8_t color_per_cell = 255;
-	// while (1) {
-	// 	colors[index / (NBR_COLUMNS * color_per_cell)][(index % (NBR_COLUMNS * color_per_cell)) / color_per_cell] = wheel(pos);
-	// 	// HAL_Delay(1);
-	// 	// colors[index / (NBR_COLUMNS * color_per_cell)][(index % (NBR_COLUMNS * color_per_cell)) / color_per_cell] = (t_color){0};
-	// 	pos++;
-	// 	index = ++index % (NBR_COLUMNS * NBR_ROWS * color_per_cell);
-	// }
+	// set_col(0, (t_color){255, 0, 0});
+	// set_col(1, (t_color){0, 255, 0});
+	// set_col(2, (t_color){0, 0, 255});
+	// set_col(3, (t_color){255, 0, 0});
+	// set_col(4, (t_color){0, 255, 0});
+	// set_col(5, (t_color){0, 0, 255});
+	
+	trigger_color_wheel();
+	
 	while (1);
 
 }
