@@ -33,3 +33,8 @@ const uint32_t bamPeriods[6] = {
     256,  // Bit 6 : 2^6 * base_unit
     512
 };
+
+Intensity :
+green, 100ohm : 7.45mA / 8mA
+blue, 100ohm : 6.63mA / 6.64mA (single column : 7.5mA)
+red, 150ohm : 8.87mA / 8.81mA (single column : 9.7mA) 
