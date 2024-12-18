@@ -22,3 +22,6 @@ void	set_col(uint8_t col, t_color color);
 void	set_row(uint8_t row, t_color color);
 void	trigger_color_wheel(void);
 void	show_intensity(uint8_t r, uint8_t g, uint8_t b);
+void	check_button_state(uint8_t button_reading, uint8_t current_row);
+
+void	Error_Handler(void);

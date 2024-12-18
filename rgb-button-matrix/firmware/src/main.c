@@ -8,6 +8,8 @@
 #define LATCH_PIN								GPIO_PIN_4
 #define LOAD_PIN								GPIO_PIN_3
 
+#define OFFSET_PERIOD 46
+
 volatile t_color			colors[NBR_ROWS][NBR_COLUMNS];
 static	TIM_HandleTypeDef	htim2;
 static	SPI_HandleTypeDef	hspi = {0};
@@ -32,8 +34,9 @@ static const uint32_t		BAM_PERIODS[COLOR_RESOLUTION] = {
 void LED_Init();
 
 static void SPI_Transmit(uint32_t data);
+static uint8_t SPI_TransmitReceive(uint32_t data);
 
-static void	Error_Handler(void) {
+void	Error_Handler(void) {
 	HAL_GPIO_WritePin(LED_GPIO_PORT, LED_PIN, GPIO_PIN_SET);
 }
 
@@ -62,7 +65,7 @@ void TIM2_IRQHandler(void) {
 			(((int)(color.b * BLUE_DAMPENING) & (1 << current_bam_bit)) != 0)) << COLUMN_SHIFT(i));
 	}
 
-	if (current_bam_bit == COLOR_RESOLUTION - 2) { // If next period is the longest one
+	if (current_bam_bit == COLOR_RESOLUTION - 1) { // If next period is the longest one
 		// Send data and read buttons
 		button_reading = SPI_TransmitReceive(data);
 		check_button_state(button_reading, current_row);
@@ -238,15 +241,20 @@ int main(void) {
 	HAL_NVIC_SetPriority(TIM2_IRQn, 0, 0);
     HAL_NVIC_EnableIRQ(TIM2_IRQn);
 
-	set_col(0, (t_color){255, 0, 0});
-	set_col(1, (t_color){0, 255, 0});
-	set_col(2, (t_color){255, 0, 0});
-	set_col(3, (t_color){255, 0, 0});
-	set_col(4, (t_color){0, 255, 0});
-	set_col(5, (t_color){0, 0, 255});
+	// set_col(0, (t_color){255, 0, 0});
+	// set_col(1, (t_color){0, 255, 0});
+	// set_col(2, (t_color){255, 0, 0});
+	// set_col(3, (t_color){255, 0, 0});
+	// set_col(4, (t_color){0, 255, 0});
+	// set_col(5, (t_color){0, 0, 255});
 	
-	trigger_color_wheel();
-	
+	// trigger_color_wheel();
+	show_intensity(1, 0, 0);
+	// set_row(0, (t_color){255, 0, 0});
+	// set_row(2, (t_color){247, 0, 0});
+	// set_row(3, (t_color){85, 0, 0});
+	// set_row(5, (t_color){85, 0, 0});
+
 	while (1);
 
 }
