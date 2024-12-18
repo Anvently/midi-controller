@@ -11,6 +11,10 @@
 #define COLOR_RESOLUTION 8
 #define BAM_PRESCALER 1
 
+#define RED_DAMPENING 1.f
+#define GREEN_DAMPENING 0.5f
+#define BLUE_DAMPENING 0.5f
+
 typedef struct s_color {
 	uint8_t	r;
 	uint8_t	g;
@@ -66,9 +70,9 @@ void TIM2_IRQHandler(void) {
 	for (uint8_t i = 0; i < NBR_COLUMNS; i++) {
 		color = colors[current_row][i];
 		data |= (GET_BIT_VALUE(
-			((color.r & (1 << current_bam_bit)) != 0),
-			((color.g & (1 << current_bam_bit)) != 0),
-			((color.b & (1 << current_bam_bit)) != 0)) << COLUMN_SHIFT(i));
+			(((int)(color.r * RED_DAMPENING) & (1 << current_bam_bit)) != 0),
+			(((int)(color.g * GREEN_DAMPENING) & (1 << current_bam_bit)) != 0),
+			(((int)(color.b * BLUE_DAMPENING) & (1 << current_bam_bit)) != 0)) << COLUMN_SHIFT(i));
 	}
 
 	// Send data to shift register
@@ -269,12 +273,12 @@ int main(void) {
 	HAL_NVIC_SetPriority(TIM2_IRQn, 0, 0);
     HAL_NVIC_EnableIRQ(TIM2_IRQn);
 
-	// set_col(0, (t_color){255, 0, 0});
-	// set_col(1, (t_color){0, 255, 0});
-	// set_col(2, (t_color){0, 0, 255});
-	// set_col(3, (t_color){255, 0, 0});
-	// set_col(4, (t_color){0, 255, 0});
-	// set_col(5, (t_color){0, 0, 255});
+	set_col(0, (t_color){255, 0, 0});
+	set_col(1, (t_color){0, 255, 0});
+	set_col(2, (t_color){255, 0, 0});
+	set_col(3, (t_color){255, 0, 0});
+	set_col(4, (t_color){0, 255, 0});
+	set_col(5, (t_color){0, 0, 255});
 	
 	trigger_color_wheel();
 	
