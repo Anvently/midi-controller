@@ -1,27 +1,13 @@
 
 #include "stm32f1xx_hal.h"
 #include <memory.h>
+#include <matrix.h>
 
 #define LED_PIN                                GPIO_PIN_13
 #define LED_GPIO_PORT                          GPIOC
 #define LATCH_PIN							GPIO_PIN_4
 
-#define NBR_COLUMNS 6
-#define NBR_ROWS 8
-#define COLOR_RESOLUTION 8
-#define BAM_PRESCALER 1
-
-#define RED_DAMPENING 1.f
-#define GREEN_DAMPENING 0.5f
-#define BLUE_DAMPENING 0.5f
-
-typedef struct s_color {
-	uint8_t	r;
-	uint8_t	g;
-	uint8_t	b;
-}	t_color;
-
-static t_color				colors[NBR_ROWS][NBR_COLUMNS];
+volatile t_color			colors[NBR_ROWS][NBR_COLUMNS];
 static	TIM_HandleTypeDef	htim2;
 static	SPI_HandleTypeDef	hspi = {0};
 static volatile uint8_t		current_row = 0;
@@ -65,7 +51,6 @@ void TIM2_IRQHandler(void) {
 	uint32_t	data = (1 << current_row);
 	t_color		color;
 
-	uint32_t old_value = TIM2->CNT;
 	// Update data from colors
 	for (uint8_t i = 0; i < NBR_COLUMNS; i++) {
 		color = colors[current_row][i];
@@ -82,9 +67,9 @@ void TIM2_IRQHandler(void) {
 	TIM2->ARR = BAM_PERIODS[current_bam_bit];
 	TIM2->CNT = 0;
 
-	current_bam_bit = ++current_bam_bit % COLOR_RESOLUTION;
+	current_bam_bit = (current_bam_bit + 1) % COLOR_RESOLUTION;
 	if (current_bam_bit == 0) // If end of cycle, select the next column
-		current_row = ++current_row % NBR_ROWS;
+		current_row = (current_row + 1) % NBR_ROWS;
 	TIM2->SR &= (uint16_t)~TIM_IT_UPDATE;
 }
 
@@ -174,21 +159,7 @@ void SysTick_Handler(void) {
 	HAL_IncTick();
 }
 
-t_color wheel(uint8_t pos) {
-	t_color result;
 
-	pos = 255 - pos;
-	if (pos < 85) {
-		return ((t_color){255 - pos * 3, 0, pos * 3});
-	} else if (pos < 170) {
-		pos = pos - 85;
-		return ((t_color){0, pos * 3, 255 - pos * 3});
-	;
-	} else {
-		pos = pos - 170;
-		return ((t_color){pos * 3, 255 - pos * 3, 0});
-	}
-}
 
 
 void SystemClock_Config(void) {
@@ -217,47 +188,6 @@ void SystemClock_Config(void) {
 	if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_2) != HAL_OK) {
 		// Gestion d'erreur
 		while (1);
-	}
-}
-
-void	show_intensity(uint8_t r, uint8_t g, uint8_t b) {
-	const uint16_t	steps = NBR_COLUMNS * NBR_ROWS;
-	const uint8_t	max = (0xFF >> (8 - COLOR_RESOLUTION));
-	// const uint8_t	step_value = max / steps;
-	uint16_t			value = 0;
-
-	for (uint8_t i = i; i < NBR_COLUMNS; i++) {
-		for (uint8_t j = 0; j < NBR_ROWS; j++) {
-			value = (((i * NBR_ROWS) + j) * max) / steps;
-			colors[j][i] =  (t_color){(r ? value : 0), (g ? value : 0), (b ? value : 0)};
-		}
-	} 
-}
-
-void	trigger_color_wheel(void) {
-	uint8_t		pos = 0; // 0 => 255
-	uint16_t	index = 0; // 0 => 48
-	uint16_t		color_per_cell = 255 / 4;
-	while (1) {
-		colors[index / (NBR_COLUMNS * color_per_cell)][(index % (NBR_COLUMNS * color_per_cell)) / color_per_cell] = wheel(pos);
-		// HAL_Delay(1);
-		// colors[index / (NBR_COLUMNS * color_per_cell)][(index % (NBR_COLUMNS * color_per_cell)) / color_per_cell] = (t_color){0};
-		pos++;
-		index = ++index % (NBR_COLUMNS * NBR_ROWS * color_per_cell);
-		HAL_Delay(1);
-	}
-
-}
-
-void	set_row(uint8_t row, t_color color) {
-	for (uint8_t col = 0; col < NBR_COLUMNS; col++) {
-		colors[row][col] = color;
-	}
-}
-
-void	set_col(uint8_t col, t_color color) {
-	for (uint8_t row = 0; row < NBR_ROWS; row++) {
-		colors[row][col] = color;
 	}
 }
 
