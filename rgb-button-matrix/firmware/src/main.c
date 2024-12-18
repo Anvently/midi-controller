@@ -5,7 +5,8 @@
 
 #define LED_PIN                                GPIO_PIN_13
 #define LED_GPIO_PORT                          GPIOC
-#define LATCH_PIN							GPIO_PIN_4
+#define LATCH_PIN								GPIO_PIN_4
+#define LOAD_PIN								GPIO_PIN_3
 
 volatile t_color			colors[NBR_ROWS][NBR_COLUMNS];
 static	TIM_HandleTypeDef	htim2;
@@ -50,6 +51,7 @@ void LED_Init() {
 void TIM2_IRQHandler(void) {
 	uint32_t	data = (1 << current_row);
 	t_color		color;
+	uint8_t		button_reading;
 
 	// Update data from colors
 	for (uint8_t i = 0; i < NBR_COLUMNS; i++) {
@@ -60,8 +62,14 @@ void TIM2_IRQHandler(void) {
 			(((int)(color.b * BLUE_DAMPENING) & (1 << current_bam_bit)) != 0)) << COLUMN_SHIFT(i));
 	}
 
-	// Send data to shift register
-	SPI_Transmit(data); // Select COL1
+	if (current_bam_bit == COLOR_RESOLUTION - 2) { // If next period is the longest one
+		// Send data and read buttons
+		button_reading = SPI_TransmitReceive(data);
+		check_button_state(button_reading, current_row);
+	} else {
+		// Send data to shift register
+		SPI_Transmit(data); // Select COL1
+	}
 
 	// Setup next interrupt by changing autoreload value
 	TIM2->ARR = BAM_PERIODS[current_bam_bit];
@@ -95,14 +103,14 @@ void SPI_GPIO_Init(void) {
 
 	GPIO_InitTypeDef GPIO_InitStruct = {0};
 
-	// SPI1 SCK -> PA5, MOSI -> PA7
-	GPIO_InitStruct.Pin = GPIO_PIN_5 | GPIO_PIN_7;
+	// SCK -> PA5, MISO -> PA6, MOSI -> PA7
+	GPIO_InitStruct.Pin = GPIO_PIN_5 | GPIO_PIN_6 | GPIO_PIN_7;
 	GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;  // Mode alternatif push-pull
 	GPIO_InitStruct.Pull = GPIO_NOPULL;
 	GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
 	HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
-	GPIO_InitStruct.Pin = LATCH_PIN ;
+	GPIO_InitStruct.Pin = LATCH_PIN | LOAD_PIN;
 	GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
     GPIO_InitStruct.Pull = GPIO_NOPULL;
 	GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
@@ -110,6 +118,7 @@ void SPI_GPIO_Init(void) {
 
 	// Disable both pin latch by default
 	HAL_GPIO_WritePin(GPIOA, LATCH_PIN, 1);
+	HAL_GPIO_WritePin(GPIOA, LOAD_PIN, 1);
 }
 
 void SPI1_Init(SPI_HandleTypeDef* hspi) {
@@ -132,6 +141,35 @@ void SPI1_Init(SPI_HandleTypeDef* hspi) {
 		// Gestion d'erreur
 		Error_Handler();
 	}
+}
+
+static uint8_t SPI_TransmitReceive(uint32_t data) {
+	uint8_t	button_reading;
+
+	//Load 74HC165 input into parallel shift register
+	HAL_GPIO_WritePin(GPIOA, LOAD_PIN, 0);
+	// __NOP();
+	HAL_GPIO_WritePin(GPIOA, LOAD_PIN, 1);
+
+	HAL_GPIO_WritePin(GPIOA, LATCH_PIN, 0);
+	// if (HAL_SPI_Transmit(hspi, data, 2, 1) != HAL_OK) {
+	// 	Error_Handler();
+	// }
+	if (HAL_SPI_TransmitReceive(&hspi, (uint8_t*)&data + 3, &button_reading, 1, 1) != HAL_OK) {
+		Error_Handler();
+	}
+	if (HAL_SPI_Transmit(&hspi, (uint8_t*)&data + 2, 1, 1) != HAL_OK) {
+		Error_Handler();
+	}
+	if (HAL_SPI_Transmit(&hspi, (uint8_t*)&data + 1, 1, 1) != HAL_OK) {
+		Error_Handler();
+	}
+	if (HAL_SPI_Transmit(&hspi, (uint8_t*)&data, 1, 1) != HAL_OK) {
+		Error_Handler();
+	}
+	HAL_GPIO_WritePin(GPIOA, LATCH_PIN, 1); // Disable shift register selection
+
+	return (button_reading);
 }
 
 static void SPI_Transmit(uint32_t data) {
@@ -158,9 +196,6 @@ static void SPI_Transmit(uint32_t data) {
 void SysTick_Handler(void) {
 	HAL_IncTick();
 }
-
-
-
 
 void SystemClock_Config(void) {
 	RCC_OscInitTypeDef RCC_OscInitStruct = {0};

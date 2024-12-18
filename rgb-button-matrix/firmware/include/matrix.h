@@ -16,6 +16,7 @@ typedef struct s_color {
 }	t_color;
 
 extern volatile t_color			colors[NBR_ROWS][NBR_COLUMNS];
+extern volatile uint8_t			button_state[NBR_ROWS];
 
 void	set_col(uint8_t col, t_color color);
 void	set_row(uint8_t row, t_color color);
