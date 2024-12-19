@@ -5,16 +5,14 @@
 
 #define LED_PIN                                GPIO_PIN_13
 #define LED_GPIO_PORT                          GPIOC
-#define LATCH_PIN								GPIO_PIN_4
-#define LOAD_PIN								GPIO_PIN_3
 
 #define OFFSET_PERIOD 46
 
 volatile t_color			colors[NBR_ROWS][NBR_COLUMNS];
 static	TIM_HandleTypeDef	htim2;
 static	SPI_HandleTypeDef	hspi = {0};
-static volatile uint8_t		current_row = 0;
-static volatile uint8_t		current_bam_bit = 0;
+// static volatile uint8_t		current_row = 0;
+// static volatile uint8_t		current_bam_bit = 0;
 
 static const uint32_t		BAM_PERIODS[COLOR_RESOLUTION] = {
 	4UL * BAM_PRESCALER,    // Bit 0 : 2^0 * base_unit
@@ -27,14 +25,9 @@ static const uint32_t		BAM_PERIODS[COLOR_RESOLUTION] = {
     512UL * BAM_PRESCALER
 };
 
-#define GET_BIT_VALUE(r, g, b) (((r) << 0) | ((g) << 1) | ((b) << 2))
-#define COLUMN_SHIFT(col) ((((col) / 2 ) * 8) + (((col) % 2) * 3) + 8)
 // #define SET_COLOR(row, col, value) (rows[row] = ((value) & ~(0b111 << COLUMN_SHIFT(col))) | ((value) << COLUMN_SHIFT(col)))
 
 void LED_Init();
-
-static void SPI_Transmit(uint32_t data);
-static uint8_t SPI_TransmitReceive(uint32_t data);
 
 void	Error_Handler(void) {
 	HAL_GPIO_WritePin(LED_GPIO_PORT, LED_PIN, GPIO_PIN_SET);
@@ -52,26 +45,42 @@ void LED_Init() {
 }
 
 void TIM2_IRQHandler(void) {
-	uint32_t	data = (1 << current_row);
-	t_color		color;
+	static uint8_t		current_row = 0;
+	static uint8_t		current_bam_bit = 0;
+	uint32_t	data;
 	uint8_t		button_reading;
 
-	// Update data from colors
-	for (uint8_t i = 0; i < NBR_COLUMNS; i++) {
-		color = colors[current_row][i];
-		data |= (GET_BIT_VALUE(
-			(((int)(color.r * RED_DAMPENING) & (1 << current_bam_bit)) != 0),
-			(((int)(color.g * GREEN_DAMPENING) & (1 << current_bam_bit)) != 0),
-			(((int)(color.b * BLUE_DAMPENING) & (1 << current_bam_bit)) != 0)) << COLUMN_SHIFT(i));
-	}
+	data = color_data[current_row][current_bam_bit];
+
+	
+	//Load 74HC165 input into parallel shift register
+	RESET_PIN(GPIOA, LOAD_PIN);
+	// __NOP();
+	SET_PIN(GPIOA, LOAD_PIN);
+
+	RESET_PIN(GPIOA, LATCH_PIN);
+	SPI1->CR1 |= (SPI_CR1_MSTR | SPI_CR1_SPE); //Enable master mode and SPI
+	SPI1->DR = (uint16_t)(data >> 16); //Write 16 first MSB
+	while ((SPI1->SR & SPI_SR_TXE) == 0); //While tx_buffer is not empty
+	while ((SPI1->SR & SPI_SR_RXNE) == 0); // While rx_buffer is not ready
+	button_reading = (uint8_t)(SPI1->DR >> 8); //Read received data
+	SPI1->DR = (uint16_t)(data & 0x0000FFFF); //Send 16 LSB
+	// while ((SPI1->SR & SPI_SR_TXE) == 0); //While tx_buffer is not empty
+	// SPI1->CR1 &= ~SPI_CR1_SPE;
+	SET_PIN(GPIOA, LATCH_PIN);
 
 	if (current_bam_bit == COLOR_RESOLUTION - 1) { // If next period is the longest one
-		// Send data and read buttons
-		button_reading = SPI_TransmitReceive(data);
-		check_button_state(button_reading, current_row);
-	} else {
-		// Send data to shift register
-		SPI_Transmit(data); // Select COL1
+		uint8_t	input = (button_state[current_row] ^ button_reading) & 0b00111111;
+
+		for (uint8_t i = 0; input != 0; input >>= 1, i++) {
+			if (input & 1) {
+				if ((button_reading & (1 << i)))
+					button_press(current_row, i);
+				else
+					button_release(current_row, i);
+			}
+		}
+		button_state[current_row] = button_reading;
 	}
 
 	// Setup next interrupt by changing autoreload value
@@ -130,7 +139,7 @@ void SPI1_Init(SPI_HandleTypeDef* hspi) {
 	hspi->Instance = SPI1;
 	hspi->Init.Mode = SPI_MODE_MASTER;  // Mode maître
 	hspi->Init.Direction = SPI_DIRECTION_2LINES; 
-	hspi->Init.DataSize = SPI_DATASIZE_8BIT;  // Transfert 8 bits
+	hspi->Init.DataSize = SPI_DATASIZE_16BIT;  // Transfert 8 bits
 	hspi->Init.CLKPolarity = SPI_POLARITY_LOW;  // Polarité du signal d'horloge
 	hspi->Init.CLKPhase = SPI_PHASE_1EDGE;  // Données capturées sur front montant
 	hspi->Init.NSS = SPI_NSS_SOFT;  // Gestion manuelle de NSS
@@ -144,56 +153,6 @@ void SPI1_Init(SPI_HandleTypeDef* hspi) {
 		// Gestion d'erreur
 		Error_Handler();
 	}
-}
-
-static uint8_t SPI_TransmitReceive(uint32_t data) {
-	uint8_t	button_reading;
-
-	//Load 74HC165 input into parallel shift register
-	HAL_GPIO_WritePin(GPIOA, LOAD_PIN, 0);
-	// __NOP();
-	HAL_GPIO_WritePin(GPIOA, LOAD_PIN, 1);
-
-	HAL_GPIO_WritePin(GPIOA, LATCH_PIN, 0);
-	// if (HAL_SPI_Transmit(hspi, data, 2, 1) != HAL_OK) {
-	// 	Error_Handler();
-	// }
-	if (HAL_SPI_TransmitReceive(&hspi, (uint8_t*)&data + 3, &button_reading, 1, 1) != HAL_OK) {
-		Error_Handler();
-	}
-	if (HAL_SPI_Transmit(&hspi, (uint8_t*)&data + 2, 1, 1) != HAL_OK) {
-		Error_Handler();
-	}
-	if (HAL_SPI_Transmit(&hspi, (uint8_t*)&data + 1, 1, 1) != HAL_OK) {
-		Error_Handler();
-	}
-	if (HAL_SPI_Transmit(&hspi, (uint8_t*)&data, 1, 1) != HAL_OK) {
-		Error_Handler();
-	}
-	HAL_GPIO_WritePin(GPIOA, LATCH_PIN, 1); // Disable shift register selection
-
-	return (button_reading);
-}
-
-static void SPI_Transmit(uint32_t data) {
-
-	HAL_GPIO_WritePin(GPIOA, LATCH_PIN, 0);
-	// if (HAL_SPI_Transmit(hspi, data, 2, 1) != HAL_OK) {
-	// 	Error_Handler();
-	// }
-	if (HAL_SPI_Transmit(&hspi, (uint8_t*)&data + 3, 1, 1) != HAL_OK) {
-		Error_Handler();
-	}
-	if (HAL_SPI_Transmit(&hspi, (uint8_t*)&data + 2, 1, 1) != HAL_OK) {
-		Error_Handler();
-	}
-	if (HAL_SPI_Transmit(&hspi, (uint8_t*)&data + 1, 1, 1) != HAL_OK) {
-		Error_Handler();
-	}
-	if (HAL_SPI_Transmit(&hspi, (uint8_t*)&data, 1, 1) != HAL_OK) {
-		Error_Handler();
-	}
-	HAL_GPIO_WritePin(GPIOA, LATCH_PIN, 1); // Disable shift register selection
 }
 
 void SysTick_Handler(void) {
