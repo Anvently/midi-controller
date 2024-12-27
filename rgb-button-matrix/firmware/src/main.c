@@ -6,7 +6,7 @@
 #define LED_PIN                                GPIO_PIN_13
 #define LED_GPIO_PORT                          GPIOC
 
-#define OFFSET_PERIOD 46
+#define OFFSET_PERIOD 3 // Measured duration of interrupt procedure 
 
 volatile t_color			colors[NBR_ROWS][NBR_COLUMNS];
 static	TIM_HandleTypeDef	htim2;
@@ -15,14 +15,14 @@ static	SPI_HandleTypeDef	hspi = {0};
 // static volatile uint8_t		current_bam_bit = 0;
 
 static const uint32_t		BAM_PERIODS[COLOR_RESOLUTION] = {
-	4UL * BAM_PRESCALER,    // Bit 0 : 2^0 * base_unit
-    8UL * BAM_PRESCALER,    // Bit 1 : 2^1 * base_unit
-    16UL * BAM_PRESCALER,   // Bit 2 : 2^2 * base_unit
-    32UL * BAM_PRESCALER,   // Bit 3 : 2^3 * base_unit
-    64UL * BAM_PRESCALER,   // Bit 4 : 2^4 * base_unit
-    128UL * BAM_PRESCALER,  // Bit 5 : 2^5 * base_unit
-    256UL * BAM_PRESCALER,  // Bit 6 : 2^6 * base_unit
-    512UL * BAM_PRESCALER
+	4UL * BAM_PRESCALER - OFFSET_PERIOD,    // Bit 0 : 2^0 * base_unit
+    8UL * BAM_PRESCALER - OFFSET_PERIOD,    // Bit 1 : 2^1 * base_unit
+    16UL * BAM_PRESCALER - OFFSET_PERIOD,   // Bit 2 : 2^2 * base_unit
+    32UL * BAM_PRESCALER - OFFSET_PERIOD,   // Bit 3 : 2^3 * base_unit
+    64UL * BAM_PRESCALER - OFFSET_PERIOD,   // Bit 4 : 2^4 * base_unit
+    128UL * BAM_PRESCALER - OFFSET_PERIOD,  // Bit 5 : 2^5 * base_unit
+    256UL * BAM_PRESCALER - OFFSET_PERIOD,  // Bit 6 : 2^6 * base_unit
+    512UL * BAM_PRESCALER - OFFSET_PERIOD
 };
 
 // #define SET_COLOR(row, col, value) (rows[row] = ((value) & ~(0b111 << COLUMN_SHIFT(col))) | ((value) << COLUMN_SHIFT(col)))
