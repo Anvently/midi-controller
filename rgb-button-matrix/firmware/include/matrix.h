@@ -2,7 +2,7 @@
 
 #define NBR_COLUMNS 6
 #define NBR_ROWS 8
-#define COLOR_RESOLUTION 8
+#define COLOR_RESOLUTION 7
 #define BAM_PRESCALER 1
 
 #define RED_DAMPENING 1.f
@@ -36,5 +36,6 @@ void	check_button_state(uint8_t button_reading, uint8_t current_row);
 uint8_t	spi_transmit_receive(uint32_t data);
 void	button_press(uint8_t row, uint8_t col);
 void	button_release(uint8_t row, uint8_t col);
+void	update_colors_data(void);
 
 void	Error_Handler(void);

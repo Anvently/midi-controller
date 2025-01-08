@@ -6,16 +6,14 @@
 #define LED_PIN                                GPIO_PIN_13
 #define LED_GPIO_PORT                          GPIOC
 
-#define OFFSET_PERIOD 3 // Measured duration of interrupt procedure 
+#define OFFSET_PERIOD 5 // Measured duration of interrupt procedure and spi transmission
 
 volatile t_color			colors[NBR_ROWS][NBR_COLUMNS];
 static	TIM_HandleTypeDef	htim2;
 static	SPI_HandleTypeDef	hspi = {0};
-// static volatile uint8_t		current_row = 0;
-// static volatile uint8_t		current_bam_bit = 0;
 
 static const uint32_t		BAM_PERIODS[COLOR_RESOLUTION] = {
-	4UL * BAM_PRESCALER - OFFSET_PERIOD,    // Bit 0 : 2^0 * base_unit
+	// 4UL * BAM_PRESCALER - OFFSET_PERIOD,    // Bit 0 : 2^0 * base_unit
     8UL * BAM_PRESCALER - OFFSET_PERIOD,    // Bit 1 : 2^1 * base_unit
     16UL * BAM_PRESCALER - OFFSET_PERIOD,   // Bit 2 : 2^2 * base_unit
     32UL * BAM_PRESCALER - OFFSET_PERIOD,   // Bit 3 : 2^3 * base_unit
@@ -52,21 +50,20 @@ void TIM2_IRQHandler(void) {
 
 	data = color_data[current_row][current_bam_bit];
 
-	
 	//Load 74HC165 input into parallel shift register
 	RESET_PIN(GPIOA, LOAD_PIN);
-	// __NOP();
 	SET_PIN(GPIOA, LOAD_PIN);
 
 	RESET_PIN(GPIOA, LATCH_PIN);
 	SPI1->CR1 |= (SPI_CR1_MSTR | SPI_CR1_SPE); //Enable master mode and SPI
-	SPI1->DR = (uint16_t)(data >> 16); //Write 16 first MSB
+	SPI1->DR = (data >> 16); //Write 16 first MSB
 	while ((SPI1->SR & SPI_SR_TXE) == 0); //While tx_buffer is not empty
 	while ((SPI1->SR & SPI_SR_RXNE) == 0); // While rx_buffer is not ready
 	button_reading = (uint8_t)(SPI1->DR >> 8); //Read received data
-	SPI1->DR = (uint16_t)(data & 0x0000FFFF); //Send 16 LSB
-	// while ((SPI1->SR & SPI_SR_TXE) == 0); //While tx_buffer is not empty
-	// SPI1->CR1 &= ~SPI_CR1_SPE;
+	SPI1->DR = (data & 0x0000FFFF); //Send 16 LSB
+	while ((SPI1->SR & SPI_SR_TXE) == 0); //While tx_buffer is not empty
+	while ((SPI1->SR & SPI_SR_RXNE) == 0); // While rx_buffer is not ready
+	(void)SPI1->DR;
 	SET_PIN(GPIOA, LATCH_PIN);
 
 	if (current_bam_bit == COLOR_RESOLUTION - 1) { // If next period is the longest one
@@ -76,8 +73,9 @@ void TIM2_IRQHandler(void) {
 			if (input & 1) {
 				if ((button_reading & (1 << i)))
 					button_press(current_row, i);
-				else
-					button_release(current_row, i);
+				// else
+					// button_release(current_row, i);
+				update_colors_data();
 			}
 		}
 		button_state[current_row] = button_reading;
@@ -125,7 +123,7 @@ void SPI_GPIO_Init(void) {
 	GPIO_InitStruct.Pin = LATCH_PIN | LOAD_PIN;
 	GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
     GPIO_InitStruct.Pull = GPIO_NOPULL;
-	GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+	GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
 	HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
 	// Disable both pin latch by default
@@ -136,23 +134,12 @@ void SPI_GPIO_Init(void) {
 void SPI1_Init(SPI_HandleTypeDef* hspi) {
 	__HAL_RCC_SPI1_CLK_ENABLE();  // Activer l'horloge SPI1
 
-	hspi->Instance = SPI1;
-	hspi->Init.Mode = SPI_MODE_MASTER;  // Mode maître
-	hspi->Init.Direction = SPI_DIRECTION_2LINES; 
-	hspi->Init.DataSize = SPI_DATASIZE_16BIT;  // Transfert 8 bits
-	hspi->Init.CLKPolarity = SPI_POLARITY_LOW;  // Polarité du signal d'horloge
-	hspi->Init.CLKPhase = SPI_PHASE_1EDGE;  // Données capturées sur front montant
-	hspi->Init.NSS = SPI_NSS_SOFT;  // Gestion manuelle de NSS
-	hspi->Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_4;  // Vitesse
-	hspi->Init.FirstBit = SPI_FIRSTBIT_MSB;  // MSB d'abord
-	hspi->Init.TIMode = SPI_TIMODE_DISABLE;  // Pas de mode TI
-	hspi->Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;  // Pas de CRC
-	hspi->Init.CRCPolynomial = 7;
-
-	if (HAL_SPI_Init(hspi) != HAL_OK) {
-		// Gestion d'erreur
-		Error_Handler();
-	}
+	SPI1->CR1 = SPI_CR1_BR_0;
+	SPI1->CR1 |= SPI_CR1_DFF;
+	SPI1->CR1 |= (SPI_CR1_SSM | SPI_CR1_SSI);
+	SPI1->CR1 |= SPI_CR1_MSTR;
+	SPI1->CR1 |= SPI_CR1_SPE;
+	SPI1->CR2 = 0;
 }
 
 void SysTick_Handler(void) {
@@ -208,7 +195,8 @@ int main(void) {
 	// set_col(5, (t_color){0, 0, 255});
 	
 	// trigger_color_wheel();
-	show_intensity(1, 0, 0);
+	show_intensity(1, 1, 1);
+	// set_col(0, (t_color){255, 255, 0});
 	// set_row(0, (t_color){255, 0, 0});
 	// set_row(2, (t_color){247, 0, 0});
 	// set_row(3, (t_color){85, 0, 0});
