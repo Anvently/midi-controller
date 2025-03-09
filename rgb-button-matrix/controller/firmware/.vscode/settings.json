@@ -58,6 +58,7 @@
   "C_Cpp_Runner.msvcSecureNoWarnings": false,
   "files.associations": {
     "*.tpp": "cpp",
-    "stm32f1xx_hal.h": "c"
+    "stm32f1xx_hal.h": "c",
+    "matrix.h": "c"
   }
 }

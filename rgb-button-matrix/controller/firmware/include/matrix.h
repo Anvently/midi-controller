@@ -11,11 +11,22 @@
 #define GREEN_DAMPENING 0.5f
 #define BLUE_DAMPENING 0.5f
 
-#define LATCH_PIN								GPIO_PIN_4
-#define LOAD_PIN								GPIO_PIN_3
+#define LATCH_PIN		GPIO_PIN_4
+#define LOAD_PIN		GPIO_PIN_3
+#define LED_PIN			GPIO_PIN_13
+#define LED_GPIO_PORT	GPIOC
+#define ADC_NSS_PIN		GPIO_PIN_12
+#define ADC_SCK_PIN		GPIO_PIN_13
+#define ADC_MISO_PIN	GPIO_PIN_14
+#define ADC_MOSI_PIN	GPIO_PIN_15
+#define ADC_MUL0_PIN	GPIO_PIN_8
+#define ADC_MUL1_PIN	GPIO_PIN_9
+#define ADC_MUL2_PIN	GPIO_PIN_10
+#define ADC_MUL3_PIN	GPIO_PIN_11
 
 #define SET_PIN(PORT, PINS)((PORT)->BSRR = (PINS))
 #define RESET_PIN(PORT, PINS)((PORT)->BSRR = ((PINS) << 16))
+#define ADC_MUL_SELECT(val) (GPIOB->ODR = (GPIOB->ODR & ~(0b1111 << 8)) | ((val) << 8))
 
 #define GET_BIT_VALUE(r, g, b) (((r) << 0) | ((g) << 1) | ((b) << 2))
 #define COLUMN_SHIFT(col) ((((col) / 2 ) * 8) + (((col) % 2) * 3) + 8)
@@ -26,6 +37,7 @@ typedef struct s_color {
 	uint8_t	r;
 	uint8_t	g;
 	uint8_t	b;
+	uint8_t	padding;
 }	t_color;
 
 
@@ -54,6 +66,7 @@ extern volatile uint32_t		color_data[NBR_ROWS][COLOR_RESOLUTION];
 int				event_push(t_button_event event);
 t_button_event	event_pop(void);
 void			handle_events(void);
+void			read_adc(void);
 
 void	set_col(uint8_t col, t_color color);
 void	set_row(uint8_t row, t_color color);

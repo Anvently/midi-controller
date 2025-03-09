@@ -3,17 +3,13 @@
 #include <memory.h>
 #include <matrix.h>
 
-#define LED_PIN                                GPIO_PIN_13
-#define LED_GPIO_PORT                          GPIOC
-
 #define OFFSET_PERIOD 5 // Measured duration of interrupt procedure and spi transmission
 #define EXTRA_PERIOD 0 // Measured duration of button matrix routine + potentiometer reading during the last BAM period
 
 volatile t_color			colors[NBR_ROWS][NBR_COLUMNS];
-static	TIM_HandleTypeDef	hTIM14;
-static	SPI_HandleTypeDef	hspi = {0};
+TIM_HandleTypeDef	hTIM14;
 
-static const uint32_t		BAM_PERIODS[COLOR_RESOLUTION] = {
+const uint32_t		BAM_PERIODS[COLOR_RESOLUTION] = {
 	// 4UL * BAM_PRESCALER - OFFSET_PERIOD,    // Bit 0 : 2^0 * base_unit
     // 8UL * BAM_PRESCALER - OFFSET_PERIOD,    // Bit 1 : 2^1 * base_unit
     16UL * BAM_PRESCALER - OFFSET_PERIOD,   // Bit 2 : 2^2 * base_unit
@@ -28,20 +24,14 @@ static const uint32_t		BAM_PERIODS[COLOR_RESOLUTION] = {
 // #define SET_COLOR(row, col, value) (rows[row] = ((value) & ~(0b111 << COLUMN_SHIFT(col))) | ((value) << COLUMN_SHIFT(col)))
 
 void LED_Init();
+void Timer2_Init(void);
+void SystemClock_Config(void);
+void SPI1_Init(void);
+void SPI2_Init(void);
+void SPI_GPIO_Init(void);
 
 void	Error_Handler(void) {
 	HAL_GPIO_WritePin(LED_GPIO_PORT, LED_PIN, GPIO_PIN_SET);
-}
-
-void LED_Init() {
-	__HAL_RCC_GPIOC_CLK_ENABLE();
-	GPIO_InitTypeDef GPIO_InitStruct;
-	GPIO_InitStruct.Pin = LED_PIN;
-	GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-	GPIO_InitStruct.Pull = GPIO_NOPULL;
-	GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-	HAL_GPIO_Init(LED_GPIO_PORT, &GPIO_InitStruct);
-	HAL_GPIO_TogglePin(LED_GPIO_PORT, LED_PIN);
 }
 
 void TIM14_IRQHandler(void) {
@@ -68,7 +58,7 @@ void TIM14_IRQHandler(void) {
 	(void)SPI1->DR;
 	SET_PIN(GPIOA, LATCH_PIN);
 
-	if (current_bam_bit == COLOR_RESOLUTION - 1) { // If next period is the longest one
+	if (current_bam_bit == COLOR_RESOLUTION - 1) { // If next period is the longest one => 512us
 		uint8_t	input = (button_state[current_row] ^ button_reading) & 0b00111111;
 
 		for (uint8_t i = 0; input != 0; input >>= 1, i++) {
@@ -80,6 +70,12 @@ void TIM14_IRQHandler(void) {
 		}
 		button_state[current_row] = button_reading;
 		handle_events();
+		read_adc();
+	}
+
+	if (current_bam_bit == COLOR_RESOLUTION - 2) { //If next period is 2nd longest one => 256us
+		update_colors_data(); //Update colors data
+		// Init DMA transfer for buttons and pot readings DMA1_Channel2
 	}
 
 	// Setup next interrupt by changing autoreload value
@@ -92,87 +88,8 @@ void TIM14_IRQHandler(void) {
 	TIM14->SR &= (uint16_t)~TIM_IT_UPDATE;
 }
 
-void Timer2_Init(void) {
-	__HAL_RCC_TIM14_CLK_ENABLE();
-
-	hTIM14.Instance = TIM14;
-	hTIM14.Init.Prescaler = (SystemCoreClock / 1000000) - 1; // Prescaler pour µs
-	hTIM14.Init.CounterMode = TIM_COUNTERMODE_UP;
-	hTIM14.Init.Period = BAM_PERIODS[COLOR_RESOLUTION - 1]; // Période pour 1 ms
-	hTIM14.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
-	hTIM14.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
-
-	if (HAL_TIM_Base_Init(&hTIM14) != HAL_OK) {
-		Error_Handler();
-	}
-
-	HAL_TIM_Base_Start_IT(&hTIM14); // Activer le timer en mode interruption
-}
-
-void SPI_GPIO_Init(void) {
-	__HAL_RCC_GPIOA_CLK_ENABLE();  // Activer l'horloge GPIO
-
-	GPIO_InitTypeDef GPIO_InitStruct = {0};
-
-	// SCK -> PA5, MISO -> PA6, MOSI -> PA7
-	GPIO_InitStruct.Pin = GPIO_PIN_5 | GPIO_PIN_6 | GPIO_PIN_7;
-	GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;  // Mode alternatif push-pull
-	GPIO_InitStruct.Pull = GPIO_NOPULL;
-	GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
-	HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
-
-	GPIO_InitStruct.Pin = LATCH_PIN | LOAD_PIN;
-	GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-    GPIO_InitStruct.Pull = GPIO_NOPULL;
-	GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
-	HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
-
-	// Disable both pin latch by default
-	HAL_GPIO_WritePin(GPIOA, LATCH_PIN, 1);
-	HAL_GPIO_WritePin(GPIOA, LOAD_PIN, 1);
-}
-
-void SPI1_Init(SPI_HandleTypeDef* hspi) {
-	__HAL_RCC_SPI1_CLK_ENABLE();  // Activer l'horloge SPI1
-
-	SPI1->CR1 = SPI_CR1_BR_0;
-	// SPI1->CR1 |= SPI_CR1_DFF;
-	SPI1->CR1 |= (SPI_CR1_SSM | SPI_CR1_SSI);
-	SPI1->CR1 |= SPI_CR1_MSTR;
-	SPI1->CR1 |= SPI_CR1_SPE;
-	SPI1->CR2 = (0b1111 << SPI_CR2_DS_Pos);
-	// SPI1->CR2 = 0;
-}
-
 void SysTick_Handler(void) {
 	HAL_IncTick();
-}
-
-void SystemClock_Config(void) {
-	RCC_OscInitTypeDef RCC_OscInitStruct = {0};
-	RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
-
-	// 1. Configurer l'oscillateur principal
-	RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSE; // Utiliser HSE
-	RCC_OscInitStruct.HSEState = RCC_HSE_ON; // Activer HSE
-	RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON; // Activer PLL
-	RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE; // Source PLL = HSE
-	RCC_OscInitStruct.PLL.PLLMUL = RCC_PLL_MUL9; // Multiplier par 9 (8 MHz * 9 = 72 MHz)
-	if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK) {
-		// Gestion d'erreur
-		while (1);
-	}
-
-	// 2. Configurer les prescalers pour les bus AHB, APB1 et APB2
-	RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK | RCC_CLOCKTYPE_SYSCLK |
-								RCC_CLOCKTYPE_PCLK1;
-	RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK; // Source SYSCLK = PLL
-	RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1; // AHB = /1
-	RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV2; // APB1 = /2 (max 36 MHz)
-	if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_1) != HAL_OK) {
-		// Gestion d'erreur
-		while (1);
-	}
 }
 
 int main(void) {
@@ -180,7 +97,8 @@ int main(void) {
 
 	LED_Init();
 	SPI_GPIO_Init();
-	SPI1_Init(&hspi);
+	SPI1_Init();
+	SPI2_Init();
 
 	SystemClock_Config();
 	Timer2_Init();
