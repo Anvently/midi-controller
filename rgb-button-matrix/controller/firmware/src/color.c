@@ -4,13 +4,15 @@ volatile uint32_t		color_data[NBR_ROWS][COLOR_RESOLUTION] = {0};
 
 void	update_colors_data(void) {
 	t_color		color;
+	uint8_t		corr_col; // Columns are actually inverted because of a faulty PCB design
 	uint32_t	data;
 
 	for (uint8_t row = 0; row < NBR_ROWS; row++) {
 		for (uint8_t bam_bit = 0; bam_bit < COLOR_RESOLUTION; bam_bit++) {
 			data = (1 << row);
 			for (uint8_t col = 0; col < NBR_COLUMNS; col++) {
-				color = colors[row][col];
+				corr_col = (col % 2 ? col - 1 : col + 1); // If even, +1, else -1
+				color = colors[row][corr_col];
 				data |= (GET_BIT_VALUE(
 					(((int)(color.r * RED_DAMPENING) & (1 << bam_bit)) != 0),
 					(((int)(color.g * GREEN_DAMPENING) & (1 << bam_bit)) != 0),

@@ -34,6 +34,9 @@ const uint32_t bamPeriods[6] = {
     512
 };
 
+Button scanning with 6 bits and 122Hz :
+Each button is scanned at a 9.22ms interval.
+
 Intensity :
 green, 100ohm : 7.45mA / 8mA (2.95V / 2.95V)
 blue, 100ohm : 6.63mA / 6.64mA (single column : 7.5mA) (3V / 3.1V)
