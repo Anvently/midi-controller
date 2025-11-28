@@ -7,6 +7,8 @@ The controller integrates :
 - for each of the 8 channels : 1 rotary encoder, 4 potentiometer and 1 crossfader 
 
 ## RGB button matrix
+![midi-demo-2cEgF7Ei](https://github.com/user-attachments/assets/a1fa666e-d852-446d-80e8-14e9720c9536)
+
 
 ![led-matrix-schematic](rgb-button-matrix/matrix/rgb%20matrix%20schematic.pdf)
 
@@ -17,5 +19,8 @@ The controller integrates :
 ![board-controller-layout](rgb-button-matrix/controller/board-layout.pdf)
 
 ## Model case
+
+<img width="1074" height="604" alt="box-CdF3BtiY" src="https://github.com/user-attachments/assets/0a55f3c5-b560-4594-aa4f-45199d63878d" />
+
 
 ![case-drawing](case%20model/Top%20panel%20Dessin%20v1.pdf)
